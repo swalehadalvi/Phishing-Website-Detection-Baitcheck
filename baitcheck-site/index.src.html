@@ -1,0 +1,971 @@
+<title>Baitcheck</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow-to-wide column; the link scanner leads, the URL "anatomy" strip with a highlighted registered domain is the signature element. */
+:root{
+  --bg:#E9EEF1; --surface:#F7FAFB; --ink:#0F1A2B; --muted:#53647A; --line:#CBD5DD;
+  --slab:#0F1A2B; --slab-ink:#EAF0F7; --slab-muted:#9AABC0;
+  --mark:#FFD23F; --mark-ink:#0F1A2B;
+  --ok:#17794F; --ok-bg:#DDF1E6; --caution:#7A5C00; --caution-bg:#F8EDC3; --warn:#A64F00; --warn-bg:#FADFC4; --bad:#C42B25; --bad-bg:#F9D9D6;
+  --seg-ok:#2FA36B; --seg-caution:#E2B714; --seg-warn:#EE8A2B; --seg-bad:#D9382F;
+  --focus:#2F5BFF;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0A101C; --surface:#111B2D; --ink:#E6EDF6; --muted:#8FA0B6; --line:#25344C;
+  --slab:#162338; --slab-ink:#EAF0F7; --slab-muted:#8FA0B6;
+  --ok:#52D199; --ok-bg:#12332A; --caution:#E5C34A; --caution-bg:#352D10; --warn:#FFA050; --warn-bg:#3A2410; --bad:#FF7B72; --bad-bg:#3C1816;
+  --focus:#8EA9FF; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0A101C; --surface:#111B2D; --ink:#E6EDF6; --muted:#8FA0B6; --line:#25344C;
+  --slab:#162338; --slab-ink:#EAF0F7; --slab-muted:#8FA0B6;
+  --ok:#52D199; --ok-bg:#12332A; --caution:#E5C34A; --caution-bg:#352D10; --warn:#FFA050; --warn-bg:#3A2410; --bad:#FF7B72; --bad-bg:#3C1816;
+  --focus:#8EA9FF; color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;
+  padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1120px;margin:0 auto}
+h1,h2,h3{font-family:var(--f-display);line-height:1.08;margin:0;text-wrap:balance;letter-spacing:-.015em}
+h1{font-size:clamp(2.2rem,6vw,4rem);font-weight:800}
+h2{font-size:clamp(1.5rem,3.4vw,2.1rem);font-weight:800}
+h3{font-size:1.15rem;font-weight:600;letter-spacing:-.005em}
+p{margin:0}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:4px}
+.mono{font-family:var(--f-mono)}
+.eyebrow{font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.lead{font-size:1.1rem;color:var(--muted);max-width:60ch}
+.hl{background:var(--mark);color:var(--mark-ink);padding:0 .18em;border-radius:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px 24px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-family:var(--f-display);font-weight:800;font-size:1.35rem;letter-spacing:-.02em}
+.brand-mark{width:32px;height:32px;border-radius:8px;background:var(--mark);color:var(--mark-ink);display:grid;place-items:center}
+.nav{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.nav a{text-decoration:none;padding:7px 12px;border-radius:8px;font-weight:500;font-size:.95rem;color:var(--muted)}
+.nav a:hover{color:var(--ink);background:var(--surface)}
+.nav a[aria-current="page"]{color:var(--ink);background:var(--surface);box-shadow:inset 0 -2px 0 var(--mark)}
+.icon-btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);width:36px;height:36px;border-radius:8px;display:grid;place-items:center;cursor:pointer}
+.icon-btn:hover{border-color:var(--muted)}
+
+/* pages */
+.page{display:none;padding-top:36px}
+.page.on{display:block}
+.stack{display:grid;gap:28px}
+
+/* hero scanner */
+.hero{display:grid;gap:18px;max-width:820px}
+.slab{background:var(--slab);color:var(--slab-ink);border-radius:14px;padding:clamp(14px,2.4vw,22px);display:grid;gap:14px}
+.scan-row{display:flex;gap:10px;flex-wrap:wrap}
+.scan-row input{flex:1 1 280px;min-width:0;font:500 1rem/1.4 var(--f-mono);padding:15px 16px;border-radius:10px;border:2px solid transparent;background:rgba(255,255,255,.08);color:var(--slab-ink)}
+.scan-row input::placeholder{color:var(--slab-muted)}
+.scan-row input:focus{outline:none;border-color:var(--mark);background:rgba(255,255,255,.12)}
+.btn{font:600 1rem var(--f-body);border:0;border-radius:10px;padding:14px 22px;cursor:pointer;background:var(--mark);color:var(--mark-ink)}
+.btn:hover{filter:brightness(1.06)}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);padding:9px 14px;font-size:.9rem;font-weight:500}
+.btn.ghost:hover{border-color:var(--muted)}
+.btn.sm{padding:9px 14px;font-size:.9rem}
+.samples{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:.85rem;color:var(--slab-muted)}
+.chip{font:400 .8rem var(--f-mono);background:rgba(255,255,255,.08);color:var(--slab-ink);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:5px 11px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip:hover{border-color:var(--mark)}
+.err{color:#FFB4AE;font-size:.92rem;min-height:1.4em}
+
+/* result */
+.result{display:grid;gap:22px;margin-top:8px}
+.banner{font-size:.85rem;color:var(--muted);display:flex;gap:8px;align-items:center}
+.banner b{background:var(--mark);color:var(--mark-ink);padding:1px 8px;border-radius:4px;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase}
+.verdict{display:grid;gap:14px;padding:clamp(16px,3vw,26px);border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.verdict .tag{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;padding:5px 11px;border-radius:999px;width:fit-content}
+.v-clean .tag{background:var(--ok-bg);color:var(--ok)}
+.v-caution .tag{background:var(--caution-bg);color:var(--caution)}
+.v-suspicious .tag{background:var(--warn-bg);color:var(--warn)}
+.v-danger .tag{background:var(--bad-bg);color:var(--bad)}
+.verdict h2{font-size:clamp(1.6rem,4vw,2.4rem)}
+.score{display:flex;align-items:baseline;gap:6px;font-family:var(--f-display);font-weight:800}
+.score b{font-size:2.4rem;line-height:1;font-variant-numeric:tabular-nums}
+.score span{color:var(--muted);font-size:1rem;font-weight:600}
+.meter{position:relative;height:12px;margin:8px 0 22px}
+.meter-zones{display:flex;height:100%;border-radius:999px;overflow:hidden;gap:2px}
+.meter-zones i{display:block;height:100%}
+.meter-zones i:nth-child(1){width:12%;background:var(--seg-ok)}
+.meter-zones i:nth-child(2){width:18%;background:var(--seg-caution)}
+.meter-zones i:nth-child(3){width:30%;background:var(--seg-warn)}
+.meter-zones i:nth-child(4){width:40%;background:var(--seg-bad)}
+.meter-pin{position:absolute;top:-6px;width:4px;height:24px;background:var(--ink);border-radius:2px;transform:translateX(-2px);box-shadow:0 0 0 3px var(--surface)}
+.meter-labels{position:absolute;top:20px;left:0;right:0;font-size:.7rem;color:var(--muted);letter-spacing:.04em}
+.meter-labels span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.meter-labels span:first-child{transform:none}
+.meter-labels span:last-child{transform:translateX(-100%)}
+
+.anatomy{display:grid;gap:8px;min-width:0}
+.anatomy .url{font:500 clamp(.85rem,2.6vw,1.15rem)/1.7 var(--f-mono);overflow-wrap:anywhere;padding:12px 14px;border-radius:10px;background:var(--bg);border:1px solid var(--line)}
+.anatomy .dim{color:var(--muted)}
+.anatomy small{color:var(--muted);font-size:.88rem}
+
+.grid2{display:grid;gap:22px;grid-template-columns:1fr}
+@media(min-width:900px){.grid2{grid-template-columns:3fr 2fr;align-items:start}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:clamp(16px,2.6vw,24px);display:grid;gap:16px;min-width:0}
+.finding{display:grid;gap:4px;padding-top:14px;border-top:1px solid var(--line)}
+.finding:first-of-type{border-top:0;padding-top:0}
+.finding .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.finding p{color:var(--muted);font-size:.95rem;max-width:68ch}
+.pill{font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-critical,.p-high{background:var(--bad-bg);color:var(--bad)}
+.p-medium{background:var(--warn-bg);color:var(--warn)}
+.p-low{background:var(--caution-bg);color:var(--caution)}
+.p-pass{background:var(--ok-bg);color:var(--ok)}
+.p-na{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.pts{margin-left:auto;font:500 .8rem var(--f-mono);color:var(--muted)}
+.plist{display:grid;gap:10px;list-style:none;margin:0;padding:0}
+.plist li{display:flex;gap:10px;align-items:flex-start;font-size:.93rem}
+.plist li span:last-child{min-width:0}
+.plist .pill{margin-top:2px}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.toast{font-size:.9rem;color:var(--ok);min-height:1.3em}
+
+/* sections */
+.cols{display:grid;gap:0 40px;grid-template-columns:1fr}
+@media(min-width:760px){.cols{grid-template-columns:1fr 1fr}}
+.rule-item{padding:18px 0;border-top:1px solid var(--line);display:grid;gap:4px}
+.rule-item p{color:var(--muted);font-size:.95rem;max-width:56ch}
+.stats{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));padding:22px 0;border-block:1px solid var(--line)}
+.stat b{display:block;font:800 clamp(1.8rem,4vw,2.6rem)/1 var(--f-display);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat span{color:var(--muted);font-size:.9rem}
+.recent{display:grid;gap:6px;list-style:none;margin:0;padding:0}
+.recent button{width:100%;text-align:left;display:flex;gap:10px;align-items:center;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font:400 .85rem var(--f-mono)}
+.recent button:hover{border-color:var(--muted)}
+.recent .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* threats */
+.bars{display:grid;gap:10px}
+.bar{display:grid;grid-template-columns:minmax(90px,150px) 1fr auto;gap:10px;align-items:center;font-size:.9rem}
+.bar .track{height:10px;background:var(--bg);border-radius:999px;overflow:hidden}
+.bar .fill{display:block;height:100%;background:var(--ink);border-radius:999px}
+.bar .n{font:400 .82rem var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.bar .l{font-family:var(--f-mono);font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.field{display:grid;gap:6px}
+.field label{font-size:.85rem;font-weight:600}
+.field input,.field select{font:400 1rem var(--f-body);padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-width:0;width:100%}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.d{font-family:var(--f-mono)}
+.twocol{display:grid;gap:22px;grid-template-columns:1fr}
+@media(min-width:900px){.twocol{grid-template-columns:1fr 1fr;align-items:start}}
+.linklist{display:grid;gap:8px;list-style:none;padding:0;margin:0;font-size:.95rem}
+.linklist a{font-weight:500}
+
+/* tips & about */
+.prose{max-width:68ch;display:grid;gap:14px}
+.prose p,.prose li{color:var(--muted)}
+.prose strong{color:var(--ink)}
+.prose ol,.prose ul{margin:0;padding-left:1.2em;display:grid;gap:8px}
+.ex{display:grid;gap:4px;padding:14px 0;border-top:1px solid var(--line)}
+.ex .m{font:500 clamp(.85rem,2.6vw,1rem) var(--f-mono);overflow-wrap:anywhere}
+.ex p{color:var(--muted);font-size:.92rem}
+details{border-top:1px solid var(--line);padding:14px 0}
+details:last-of-type{border-bottom:1px solid var(--line)}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:12px}
+summary::after{content:"+";font-family:var(--f-mono);color:var(--muted)}
+details[open] summary::after{content:"\2212"}
+summary::-webkit-details-marker{display:none}
+details p{color:var(--muted);margin-top:8px;max-width:64ch}
+.wt{width:100%}
+.fatal{background:var(--bad-bg);color:var(--bad);border:1px solid var(--bad);border-radius:10px;padding:12px 14px;margin:16px 0;font-size:.95rem}
+.field textarea{font:400 .9rem/1.5 var(--f-mono);padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;min-height:260px;resize:vertical}
+.callout{background:var(--warn-bg);color:var(--ink);border-radius:14px;padding:clamp(16px,2.6vw,24px);display:grid;gap:6px}
+.callout p{max-width:70ch}
+.formgrid{display:grid;gap:14px;grid-template-columns:1fr}
+@media(min-width:760px){.formgrid{grid-template-columns:1fr 1fr}.formgrid .full{grid-column:1/-1}}
+.btnlink{display:inline-block;text-decoration:none;width:fit-content}
+.kvs{display:grid;gap:8px;margin:0}
+.kv{display:grid;grid-template-columns:minmax(100px,140px) 1fr;gap:10px;font-size:.9rem}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;overflow-wrap:anywhere;min-width:0}
+.result.still{animation:none!important}
+.foot{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;gap:8px 24px;flex-wrap:wrap;justify-content:space-between}
+@media(prefers-reduced-motion:no-preference){.result{animation:rise .35s ease-out}@keyframes rise{from{opacity:.0;transform:translateY(6px)}to{opacity:1;transform:none}}}
+</style>
+
+<div class="wrap">
+<div class="fatal" id="fatal" role="alert" hidden></div>
+<header class="top">
+  <a class="brand" href="#home"><span class="brand-mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v10.5a4.5 4.5 0 1 1-9 0" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="4" r="1.7" fill="currentColor"/><path d="M3 14.5l-1.8-2.2M3 14.5l2.2-1.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>Baitcheck</a>
+  <nav class="nav" aria-label="Main">
+    <a href="#home" data-nav="home">Home</a>
+    <a href="#threats" data-nav="threats">Threat list</a>
+    <a href="#report" data-nav="report">Report fraud</a>
+    <a href="#tips" data-nav="tips">Safety tips</a>
+    <a href="#about" data-nav="about">About</a>
+    <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch light or dark theme"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
+  </nav>
+</header>
+
+<!-- HOME -->
+<main>
+<section class="page on" data-page="home" aria-labelledby="h-home">
+ <div class="stack">
+  <div class="hero">
+    <p class="eyebrow">Phishing link checker</p>
+    <h1 id="h-home">Paste the link. See what <span class="hl">it's hiding.</span></h1>
+    <p class="lead">Baitcheck reads a web address the way a careful person would, then tells you what looks wrong and why. Nothing you paste leaves your browser.</p>
+    <form class="slab" id="scanForm" autocomplete="off" novalidate>
+      <div class="scan-row">
+        <input id="urlInput" type="text" inputmode="url" spellcheck="false" aria-label="Link to check" placeholder="Paste a link, e.g. http://secure-login.example.top/verify">
+        <button class="btn" type="submit">Check link</button>
+      </div>
+      <div class="err" id="scanErr" role="alert"></div>
+      <div class="samples"><span>Try an example:</span>
+        <button type="button" class="chip" data-sample="https://accounts.google.com.session-verify.top/signin?next=http://get-token.xyz">google lookalike</button>
+        <button type="button" class="chip" data-sample="http://192.0.2.44:8080/secure/login.php">raw IP address</button>
+        <button type="button" class="chip" data-sample="https://github.com/anthropics">github.com</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="resultMount"></div>
+
+  <div id="recentWrap" hidden>
+    <p class="eyebrow" style="margin-bottom:10px">Your recent checks on this device</p>
+    <ul class="recent" id="recentList"></ul>
+  </div>
+
+  <div class="stats" id="homeStats"></div>
+
+  <div>
+    <h2 style="margin-bottom:8px">What Baitcheck looks at</h2>
+    <p class="lead" style="margin-bottom:12px">Every check below becomes a line in your result, with the reason it matters.</p>
+    <div class="cols">
+      <div class="rule-item"><h3>Known reports</h3><p>The domain is compared with a snapshot of active phishing domains collected by an open community project, plus links you have reported yourself.</p></div>
+      <div class="rule-item"><h3>Brand lookalikes</h3><p>Misspellings, swapped digits and brand names placed in the wrong part of the address, tested against about 40 widely impersonated companies.</p></div>
+      <div class="rule-item"><h3>Address structure</h3><p>IP addresses, <span class="mono">@</span> tricks, long chains of subdomains, odd ports, shorteners and redirect parameters.</p></div>
+      <div class="rule-item"><h3>Lookalike characters</h3><p>Addresses written with non-Latin letters that imitate Latin ones, shown in their punycode form and decoded.</p></div>
+      <div class="rule-item"><h3>Cheap or abused hosting</h3><p>Top-level domains and free site builders that appear far more often in scams than elsewhere.</p></div>
+      <div class="rule-item"><h3>Pressure wording</h3><p>Words such as verify, suspended or unlock sitting inside the address itself.</p></div>
+    </div>
+  </div>
+ </div>
+</section>
+
+<!-- THREATS -->
+<section class="page" data-page="threats" aria-labelledby="h-threats">
+ <div class="stack">
+  <div class="prose">
+    <p class="eyebrow">Blocklist snapshot</p>
+    <h1 id="h-threats">Reported phishing domains</h1>
+    <p class="lead" id="thLead"></p>
+  </div>
+  <div class="twocol">
+    <div class="panel"><h3>Most listed endings</h3><div class="bars" id="tldBars"></div></div>
+    <div class="panel"><h3>Most listed hosting platforms</h3><div class="bars" id="hostBars"></div></div>
+  </div>
+  <div class="panel">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between;align-items:end">
+      <div><h3>Sample of listed domains</h3><p style="color:var(--muted);font-size:.9rem">A random sample of <span id="sampN"></span> entries, written defanged so they cannot be clicked. To test any domain against the full list, use the checker on the home page.</p></div>
+      <div class="field" style="min-width:220px;flex:0 1 280px"><label for="filterIn">Filter sample</label><input id="filterIn" type="search" placeholder="e.g. login, .top"></div>
+    </div>
+    <div class="tbl"><table><thead><tr><th>Domain</th><th>Ending</th></tr></thead><tbody id="sampBody"></tbody></table></div>
+    <div class="actions"><button class="btn ghost" id="moreBtn" type="button">Show more</button><span id="sampCount" style="color:var(--muted);font-size:.88rem;align-self:center"></span></div>
+  </div>
+  <div class="twocol">
+    <div class="panel">
+      <h3>Flag a link on this device</h3>
+      <p style="color:var(--muted);font-size:.93rem">Flagged links are stored only in this browser. The checker will treat them as reported the next time you scan them. This does not notify anyone else.</p>
+      <form id="repForm" class="stack" style="gap:12px" autocomplete="off" novalidate>
+        <div class="field"><label for="repUrl">Link or domain</label><input id="repUrl" type="text" spellcheck="false" placeholder="paypa1-help.example"></div>
+        <div class="field"><label for="repWhy">What made it suspicious?</label>
+          <select id="repWhy"><option>Arrived in an unexpected email or message</option><option>Asked for a password or one-time code</option><option>Pretended to be a bank or shop</option><option>Promised a prize or refund</option><option>Something else</option></select></div>
+        <div class="actions"><button class="btn sm" type="submit">Save flag</button></div>
+        <div class="toast" id="repMsg" role="status"></div>
+      </form>
+      <div id="repList"></div>
+    </div>
+    <div class="panel">
+      <h3>Look up a domain in the full snapshot</h3>
+      <p style="color:var(--muted);font-size:.93rem">Checks all <span id="lkN"></span> reported domains, not only the sample above.</p>
+      <form id="lkForm" class="stack" style="gap:12px" autocomplete="off" novalidate>
+        <div class="field"><label for="lkIn">Link or domain</label><input id="lkIn" type="text" spellcheck="false" placeholder="example.com"></div>
+        <div class="actions"><button class="btn sm" type="submit">Look up</button></div>
+        <div id="lkOut" role="status" style="font-size:.95rem"></div>
+      </form>
+      <p style="color:var(--muted);font-size:.9rem">Seen a scam? File it with the authorities on the <a href="#report">Report fraud</a> page.</p>
+      __DL__
+    </div>
+  </div>
+ </div>
+</section>
+
+<!-- TIPS -->
+<section class="page" data-page="tips" aria-labelledby="h-tips">
+ <div class="stack">
+  <div class="prose">
+    <p class="eyebrow">Safety tips</p>
+    <h1 id="h-tips">How to read a web address</h1>
+    <p class="lead">Only one part of an address says who owns the site. Everything to its left is chosen by that owner, and everything to its right is just a page.</p>
+  </div>
+  <div class="panel">
+    <h3>Same words, different owner</h3>
+    <div>
+      <div class="ex"><div class="m dim">https://<span style="color:var(--muted)">www.</span><span class="hl">paypal.com</span>/signin</div><p>Real. The owner is <b>paypal.com</b>.</p></div>
+      <div class="ex"><div class="m">https://paypal.com.<span class="hl">secure-check.top</span>/signin</div><p>Fake. The owner is <b>secure-check.top</b>. "paypal.com" is only a subdomain it chose.</p></div>
+      <div class="ex"><div class="m">https://<span class="hl">paypa1.com</span>/signin</div><p>Fake. A digit 1 stands in for the letter l.</p></div>
+      <div class="ex"><div class="m">https://accounts.google.com@<span class="hl">203.0.113.9</span>/</div><p>Fake. Everything before the @ is ignored. The browser goes to the IP address.</p></div>
+      <div class="ex"><div class="m">https://<span class="hl">xn--pple-43d.com</span>/</div><p>Fake. Written with a Cyrillic "а" that looks identical to a Latin "a". The xn-- prefix gives it away.</p></div>
+    </div>
+  </div>
+  <div class="twocol">
+    <div class="prose">
+      <h2>Habits that protect you</h2>
+      <ul>
+        <li><strong>Type the address yourself</strong> or use a saved bookmark for banks, wallets and email.</li>
+        <li><strong>Distrust urgency.</strong> Real companies do not give you ten minutes before your account closes.</li>
+        <li><strong>Never share a one-time code.</strong> No genuine support agent needs it.</li>
+        <li><strong>The padlock is not proof.</strong> Scam sites get HTTPS certificates too.</li>
+        <li><strong>Hover before you tap.</strong> On a computer, the real destination shows at the bottom of the window.</li>
+        <li><strong>Use a password manager.</strong> It will not fill a password on a domain it has never seen.</li>
+        <li><strong>Turn on two-step sign-in</strong> with an authenticator app or a security key.</li>
+      </ul>
+    </div>
+    <div class="prose">
+      <h2>If you already clicked</h2>
+      <ol>
+        <li>Close the page. Do not enter anything else.</li>
+        <li>If you typed a password, change it now on the real site, then anywhere you reused it.</li>
+        <li>If you shared card or bank details, call the number on the back of your card or on the bank's official site.</li>
+        <li>Sign out of all sessions and check recent activity for logins you do not recognise.</li>
+        <li>Report the link using the places on the Threat list page.</li>
+      </ol>
+    </div>
+  </div>
+ </div>
+</section>
+
+<!-- REPORT -->
+<section class="page" data-page="report" aria-labelledby="h-report">
+ <div class="stack">
+  <div class="prose">
+    <p class="eyebrow">Report fraud</p>
+    <h1 id="h-report">Report a fraud website in India</h1>
+    <p class="lead">Complaints about fraud websites go to the National Cyber Crime Reporting Portal, run by the Government of India. The portal takes reports. It does not publish a list of fraud sites, so Baitcheck cannot read data from it.</p>
+  </div>
+  <div class="callout">
+    <h3>Lost money? Call 1930 first.</h3>
+    <p>1930 is the national helpline for online financial fraud. Calling within the first hours gives your bank the best chance of holding the transfer. Then file the complaint on the portal and keep the acknowledgement number.</p>
+  </div>
+  <div class="twocol">
+    <div class="panel prose">
+      <h2>Filing on the portal</h2>
+      <ol>
+        <li>Collect your evidence first, using the list beside this one.</li>
+        <li>Open <strong>cybercrime.gov.in</strong> and choose the option to file a complaint. Pick the category for financial fraud if money was lost, or the one for other cyber crimes if not. Menu names can change, so follow the portal's current labels.</li>
+        <li>Register or sign in with your mobile number and the OTP sent to it.</li>
+        <li>Describe what happened, enter the fraud link and any transaction details, and upload your evidence.</li>
+        <li>Submit, then note the acknowledgement number. You can use it to follow up.</li>
+      </ol>
+      <a class="btn btnlink sm" href="https://cybercrime.gov.in" target="_blank" rel="noopener">Open cybercrime.gov.in</a>
+    </div>
+    <div class="panel prose">
+      <h2>Evidence to gather</h2>
+      <ul>
+        <li>Screenshots of the site, including the address bar</li>
+        <li>The full link, copied as text</li>
+        <li>The original email, SMS or WhatsApp message</li>
+        <li>Payment receipts, transaction IDs and UPI references</li>
+        <li>Phone numbers, UPI IDs and account numbers the scammer gave you</li>
+        <li>Your bank statement showing the debit</li>
+      </ul>
+      <p>Do not delete the chat or email. Keep the originals even after you have taken screenshots.</p>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Write the complaint text</h2>
+    <p style="color:var(--muted);max-width:68ch">Fill this in and Baitcheck writes a clear summary, with its own address check attached. Copy it into the description box on the portal. Nothing is sent from this page.</p>
+    <form id="rpForm" autocomplete="off" novalidate>
+      <div class="formgrid">
+        <div class="field full"><label for="rpUrl">Fraud website link</label><input id="rpUrl" type="text" spellcheck="false" placeholder="http://fake-shop.example/pay"></div>
+        <div class="field"><label for="rpHow">How did you reach it?</label>
+          <select id="rpHow"><option>Email</option><option>SMS</option><option>WhatsApp or Telegram message</option><option>Social media advert or post</option><option>Search engine result</option><option>Phone call</option><option>Other</option></select></div>
+        <div class="field"><label for="rpDate">Date of incident</label><input id="rpDate" type="date"></div>
+        <div class="field"><label for="rpLoss">Did you lose money?</label>
+          <select id="rpLoss"><option value="no">No</option><option value="yes">Yes</option></select></div>
+        <div class="field"><label for="rpAmt">Amount lost (INR)</label><input id="rpAmt" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="field full"><label for="rpTxn">Transaction ID or UPI reference (optional)</label><input id="rpTxn" type="text" spellcheck="false"></div>
+        <div class="field full"><label for="rpNote">What happened, in your words</label><textarea id="rpNote" style="min-height:110px" placeholder="e.g. I was asked to pay a small fee to release a parcel and then asked for my card details."></textarea></div>
+      </div>
+      <div class="actions" style="margin-top:14px"><button class="btn sm" type="submit">Write complaint text</button><button class="btn ghost" id="rpCopy" type="button" hidden>Copy text</button></div>
+      <div class="toast" id="rpMsg" role="status"></div>
+      <div class="field" id="rpOutWrap" hidden style="margin-top:8px"><label for="rpOut">Complaint text</label><textarea id="rpOut" readonly></textarea></div>
+    </form>
+  </div>
+  <div class="twocol">
+    <div class="panel">
+      <h3>Other places to report in India</h3>
+      <ul class="linklist">
+        <li><a href="https://www.sancharsaathi.gov.in" target="_blank" rel="noopener">Sanchar Saathi (Chakshu)</a> for fraud calls, SMS and WhatsApp messages</li>
+        <li>Your bank's fraud line, to block cards and flag the payment</li>
+        <li><a href="https://www.cert-in.org.in" target="_blank" rel="noopener">CERT-In</a>, the national agency for cyber security incidents</li>
+        <li><a href="https://safebrowsing.google.com/safebrowsing/report_phish/" target="_blank" rel="noopener">Google Safe Browsing</a>, so browsers warn other people</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Outside India</h3>
+      <ul class="linklist">
+        <li><a href="https://www.ic3.gov" target="_blank" rel="noopener">United States: FBI Internet Crime Complaint Center</a></li>
+        <li><span>Anti-Phishing Working Group: forward phishing emails to <span class="mono">reportphishing@apwg.org</span></span></li>
+        <li><a href="https://safebrowsing.google.com/safebrowsing/report_phish/" target="_blank" rel="noopener">Google Safe Browsing</a></li>
+      </ul>
+      <p style="color:var(--muted);font-size:.9rem">In other countries, search for your national police or consumer-protection fraud reporting service.</p>
+    </div>
+  </div>
+ </div>
+</section>
+
+<!-- ABOUT -->
+<section class="page" data-page="about" aria-labelledby="h-about">
+ <div class="stack">
+  <div class="prose">
+    <p class="eyebrow">About</p>
+    <h1 id="h-about">What Baitcheck is and isn't</h1>
+    <p class="lead">A free, private first look at a suspicious link. It scores the address, explains each reason, and checks it against a public list of reported phishing domains.</p>
+  </div>
+  <div class="twocol">
+    <div class="prose">
+      <h2>How the score works</h2>
+      <p>Each warning sign adds points. A domain on the reported list jumps straight to the danger band. The total is capped at 100 and mapped to four bands.</p>
+      <div class="tbl wt"><table><thead><tr><th>Score</th><th>Band</th></tr></thead><tbody>
+        <tr><td class="d">0 to 11</td><td>No red flags found</td></tr>
+        <tr><td class="d">12 to 29</td><td>A few warning signs</td></tr>
+        <tr><td class="d">30 to 59</td><td>Suspicious</td></tr>
+        <tr><td class="d">60 to 100</td><td>Likely phishing</td></tr></tbody></table></div>
+      <p>Domains belonging to well-known companies are recognised and skip the wording and brand tests, so <span class="mono">accounts.google.com</span> is not penalised for containing "accounts".</p>
+    </div>
+    <div class="prose">
+      <h2>Where the data comes from</h2>
+      <p>The reported-domain list is a snapshot of the active domains in the open-source <a href="https://github.com/mitchellkrogza/Phishing.Database" target="_blank" rel="noopener">Phishing.Database</a> project by Mitchell Krogza, taken on <span id="snapDate"></span>. It holds <strong id="aboutCount"></strong> domains, packed into a compact fingerprint index inside this page so lookups work offline.</p>
+      <p>The list changes daily. A domain missing from the snapshot may still be new, and a listed domain may since have been cleaned up.</p>
+    </div>
+  </div>
+  <div class="prose">
+    <h2>Limits you should know about</h2>
+    <p>A web page cannot reach other websites, so Baitcheck judges the address and not what sits behind it. It does not see the page content, the age of the domain, or live reports newer than the snapshot. Those appear as "Not checked here" in every result. Certificate details can be checked too, but only when you run the optional helper that comes with the download (see the README). Treat a clean result as "nothing obvious", never as "safe".</p>
+  </div>
+  <div>
+    <h2 style="margin-bottom:14px">Questions</h2>
+    <details><summary>Is the link I paste sent anywhere?</summary><p>No. The analysis runs inside this page. Recent checks and flagged links are saved in your browser's local storage on this device only.</p></details>
+    <details><summary>Why does a trusted site sometimes show a few flags?</summary><p>Some legitimate services use long addresses, tracking parameters or shorteners. Flags describe risk in the address, so read each reason and judge for yourself.</p></details>
+    <details><summary>Why is "Not checked here" in every result?</summary><p>A web page is not allowed to make requests to other servers, so it cannot look up domain age. Certificate details work when you run the optional local helper (server.py) from the download. Rather than guess, Baitcheck says what it did not check.</p></details>
+    <details><summary>Does Baitcheck use data from the cyber crime portal?</summary><p>No. The portal accepts complaints but does not publish a list of fraud sites or offer a feed, so nothing from it can be loaded here. Baitcheck uses the open Phishing.Database snapshot instead. To get a scam investigated, file it on the portal using the Report fraud page.</p></details>
+    <details><summary>Can I rely on this instead of antivirus or browser warnings?</summary><p>No. Use it alongside them. Your browser's built-in protection and a mail filter see things this page cannot.</p></details>
+  </div>
+ </div>
+</section>
+</main>
+
+<footer class="foot"><span>Baitcheck reads addresses, not pages. A clean result is not a guarantee.</span><span>Blocklist snapshot: <span id="footDate"></span></span></footer>
+</div>
+
+<script>
+function showFatal(e){ try{ const b=document.getElementById('fatal'); if(b){ b.hidden=false; b.textContent='Baitcheck hit an error while loading: '+((e&&e.message)||e)+'. Open the browser console (F12) and send a screenshot of it.'; } }catch(_){} }
+window.addEventListener('error', ev => showFatal(ev.error||ev.message));
+const BL_B64 = "__BL__";
+const STATS = __STATS__;
+const SNAP = "4 Nov 2026";
+const STANDALONE = false;
+let HELPER = null;
+
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n).toLocaleString();
+function store(k, v){ try{ if(v===undefined){ return JSON.parse(localStorage.getItem(k)||'null'); } localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return null; } }
+
+/* ---------- blocklist (40-bit fingerprints, delta + varint) ---------- */
+let BL = null;
+function fnv(s, basis){ let h = basis >>> 0; for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; }
+function keyOf(s){ return (fnv(s, 0x9747b28c) & 0xff) * 4294967296 + fnv(s, 0x811c9dc5); }
+function loadBL(){
+  if(BL) return BL;
+  const bin = atob(BL_B64), set = new Set();
+  let acc = 0, v = 0, mul = 1;
+  for(let i=0;i<bin.length;i++){
+    const b = bin.charCodeAt(i);
+    v += (b & 127) * mul;
+    if(b & 128){ mul *= 128; }
+    else { acc += v; set.add(acc); v = 0; mul = 1; }
+  }
+  BL = set; return BL;
+}
+
+/* ---------- reference data ---------- */
+const BRANDS = [
+ ['paypal',['paypal.com','paypal.me']],['google',['google.com','gmail.com','google.co.in','google.co.uk','googleapis.com','gstatic.com','youtube.com','goo.gl']],
+ ['microsoft',['microsoft.com','live.com','office.com','outlook.com','microsoftonline.com','windows.com','office365.com','azure.com','bing.com']],
+ ['apple',['apple.com','icloud.com']],['amazon',['amazon.com','amazon.in','amazon.co.uk','amazon.de','amazon.ca','amazon.com.au','amazonaws.com']],
+ ['facebook',['facebook.com','fb.com','meta.com','messenger.com']],['instagram',['instagram.com']],['whatsapp',['whatsapp.com','whatsapp.net']],
+ ['netflix',['netflix.com']],['linkedin',['linkedin.com']],['twitter',['twitter.com','x.com']],['github',['github.com','github.io','githubusercontent.com']],
+ ['dropbox',['dropbox.com']],['adobe',['adobe.com']],['docusign',['docusign.com','docusign.net']],['dhl',['dhl.com']],['fedex',['fedex.com']],['usps',['usps.com']],
+ ['hdfcbank',['hdfcbank.com']],['icicibank',['icicibank.com']],['axisbank',['axisbank.com']],['onlinesbi',['onlinesbi.sbi','sbi.co.in']],['paytm',['paytm.com']],['phonepe',['phonepe.com']],
+ ['bankofamerica',['bankofamerica.com']],['chase',['chase.com']],['wellsfargo',['wellsfargo.com']],['citibank',['citibank.com','citi.com']],
+ ['coinbase',['coinbase.com']],['binance',['binance.com']],['metamask',['metamask.io']],['steam',['steampowered.com','steamcommunity.com']],
+ ['spotify',['spotify.com']],['ebay',['ebay.com']],['walmart',['walmart.com']],['dhlexpress',['dhl.com']],['telegram',['telegram.org','t.me']],['zoom',['zoom.us']],['outlook',['outlook.com','live.com']]
+];
+const KNOWN = new Set(BRANDS.flatMap(b => b[1]).concat(['wikipedia.org','stackoverflow.com','reddit.com','bbc.com','bbc.co.uk','nytimes.com','cloudflare.com','openai.com','anthropic.com','claude.ai','slack.com','mozilla.org','python.org','npmjs.com','medium.com','yahoo.com','irs.gov','gov.in','nic.in','ibm.com']));
+const SECOND = new Set(['co.uk','org.uk','ac.uk','gov.uk','com.au','net.au','org.au','co.in','org.in','net.in','gov.in','ac.in','nic.in','co.nz','co.za','com.br','com.mx','co.jp','com.sg','com.tr','com.pk','com.bd','co.id','com.my','co.kr','com.cn','com.hk','com.ng']);
+const SUS_TLD = new Set(['zip','mov','top','xyz','click','country','gq','tk','ml','cf','ga','work','support','rest','cam','icu','buzz','sbs','cyou','monster','quest','lol','bond','cfd','surf','loan','men','review','date','download','stream','racing','win','bid','trade','accountant','science','party','cc']);
+const SHORT = new Set(['bit.ly','tinyurl.com','t.co','goo.gl','ow.ly','is.gd','buff.ly','rebrand.ly','cutt.ly','shorturl.at','tiny.cc','rb.gy','lnkd.in','bit.do','s.id','t.ly']);
+const FREEHOST = ['000webhostapp.com','weeblysite.com','weebly.com','blogspot.com','github.io','pages.dev','netlify.app','vercel.app','web.app','firebaseapp.com','glitch.me','wixsite.com','godaddysites.com','webflow.io','appspot.com','duckdns.org','herokuapp.com','workers.dev','framer.app','carrd.co','myshopify.com'];
+const WORDS = ['login','signin','sign-in','verify','verification','secure','security','account','update','confirm','banking','wallet','password','passwd','billing','invoice','suspended','unlock','recover','authenticate','validate','alert','support','helpdesk','refund','reward','prize','gift','claim','payment','kyc','otp'];
+
+function regDomain(host){
+  const p = host.split('.');
+  if(p.length >= 3 && SECOND.has(p.slice(-2).join('.'))) return p.slice(-3).join('.');
+  return p.slice(-2).join('.');
+}
+function lev(a,b){
+  const m=a.length,n=b.length; if(!m) return n; if(!n) return m;
+  let prev=Array.from({length:n+1},(_,i)=>i);
+  for(let i=1;i<=m;i++){ const cur=[i]; for(let j=1;j<=n;j++){ cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1)); } prev=cur; }
+  return prev[n];
+}
+function entropy(s){ const f={}; for(const c of s) f[c]=(f[c]||0)+1; return -Object.values(f).reduce((a,v)=>a+(v/s.length)*Math.log2(v/s.length),0); }
+function adapt(d,num,first){ d = first ? Math.floor(d/700) : d>>1; d += Math.floor(d/num); let k=0; while(d>455){ d=Math.floor(d/35); k+=36; } return k+Math.floor(36*d/(d+38)); }
+function punyDecode(inp){
+  try{
+    const out=[]; let i=0,n=128,bias=72; let b=inp.lastIndexOf('-'); if(b<0) b=0;
+    for(let j=0;j<b;j++) out.push(inp.charCodeAt(j));
+    for(let idx=b>0?b+1:0; idx<inp.length;){
+      const oldi=i; let w=1;
+      for(let k=36;;k+=36){
+        if(idx>=inp.length) return null;
+        const c=inp.charCodeAt(idx++);
+        const dg = (c>=48&&c<=57)?c-22 : (c>=65&&c<=90)?c-65 : (c>=97&&c<=122)?c-97 : 36;
+        if(dg>=36) return null;
+        i+=dg*w; const t = k<=bias?1:(k>=bias+26?26:k-bias);
+        if(dg<t) break; w*=36-t;
+      }
+      const len=out.length+1; bias=adapt(i-oldi,len,oldi===0); n+=Math.floor(i/len); i%=len; out.splice(i++,0,n);
+    }
+    return String.fromCodePoint(...out);
+  }catch(e){ return null; }
+}
+const unPuny = host => host.split('.').map(l => l.startsWith('xn--') ? (punyDecode(l.slice(4)) || l) : l).join('.');
+const leetVariants = s => [s.replace(/0/g,'o').replace(/1/g,'l').replace(/3/g,'e').replace(/4/g,'a').replace(/5/g,'s').replace(/\$/g,'s'), s.replace(/0/g,'o').replace(/1/g,'i').replace(/3/g,'e').replace(/4/g,'a').replace(/5/g,'s')];
+
+/* ---------- parsing ---------- */
+function parseInput(raw){
+  let s = String(raw||'').trim();
+  if(!s) return {error:'Paste a link to check.'};
+  if(/^(javascript|data|vbscript):/i.test(s)) return {special:s.split(':')[0].toLowerCase(), input:s};
+  if(/\s/.test(s)) return {error:'That has spaces in it. Paste just the link, with no extra text.'};
+  s = s.replace(/^hxxp/i,'http').replace(/\[\.\]|\(\.\)/g,'.');
+  let assumed = false;
+  if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)){ s = 'https://' + s; assumed = true; }
+  let u; try{ u = new URL(s); }catch(e){ return {error:"That doesn't look like a web address. Try something like example.com/page."}; }
+  if(!/^https?:$/.test(u.protocol)) return {error:'Only http and https links can be checked.'};
+  const host = u.hostname.toLowerCase().replace(/\.$/,'');
+  const isIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith('[');
+  if(!isIp && !host.includes('.')) return {error:"That doesn't look like a web address. Try something like example.com/page."};
+  return {u, host, isIp, assumed, input:raw.trim()};
+}
+
+/* ---------- analysis ---------- */
+function analyze(raw){
+  const p = parseInput(raw);
+  if(p.error) return p;
+  const F = [], P = [];
+  const add = (sev, title, detail, pts) => F.push({sev, title, detail, pts});
+  const ok  = (title, detail) => P.push({title, detail});
+  if(p.special){
+    add('critical','Script or data link',`Links that start with "${p.special}:" run code or carry content directly in your browser instead of opening a website. They are a common way to hide malicious content.`,100);
+    return {input:p.input, special:true, findings:F, passed:P, score:100, level:'danger', parts:null};
+  }
+  const {u, host, isIp} = p;
+  const reg = isIp ? host : regDomain(host);
+  const tld = isIp ? '' : host.split('.').pop();
+  const regLabel = isIp ? '' : reg.split('.')[0];
+  const sub = isIp ? '' : host.slice(0, Math.max(0, host.length - reg.length - 1));
+  const path = u.pathname + u.search;
+  const known = !isIp && KNOWN.has(reg);
+  let lowPath; try{ lowPath = decodeURIComponent(path).toLowerCase(); }catch(e){ lowPath = path.toLowerCase(); }
+
+  // 1. blocklist
+  let blocked = null;
+  const bl = loadBL();
+  const cands = [host]; if(!isIp){ const lab = host.split('.'); for(let i=1;i<lab.length-1;i++) cands.push(lab.slice(i).join('.')); }
+  for(const c of cands){ if(c!==host && KNOWN.has(regDomain(c))) continue; if(bl.has(keyOf(c))){ blocked = c; break; } }
+  const general = !!blocked && (SHORT.has(blocked) || KNOWN.has(regDomain(blocked)));
+  if(blocked && general){
+    add('medium','Appears in the reported list',`${blocked} is on the community list, but it is a widely used service. Entries like this usually point to individual abusive links on the service, not to the whole service. Be extra careful with this specific link.`,22);
+  } else if(blocked){
+    add('critical','Listed as an active phishing domain',`${blocked===host?'This exact domain':'The parent domain '+blocked} appears in the community list of reported phishing domains (snapshot ${SNAP}). Do not enter any details on this site.`,100);
+  } else {
+    ok('Not in the reported-domain snapshot',`Checked against ${fmt(STATS.count)} reported domains from ${SNAP}. New scams will not be in it yet.`);
+  }
+  // local reports
+  const mine = (store('baitcheck.reports')||[]).find(r => r.host===host || r.host===reg);
+  if(mine) add('high','You flagged this site',`You saved a flag for ${mine.host} on this device (${mine.why.toLowerCase()}).`,60);
+
+  // 2. IP host
+  if(isIp) add('high','Address is a raw IP number','Real companies use names, not numbers. Scammers use IP addresses to skip domain registration and avoid being traced.',35);
+  else ok('Uses a domain name','The address has a name instead of a bare IP number.');
+
+  // 3. userinfo
+  if(u.username || u.password) add('high','Hidden destination before an @ sign',`Everything before the @ ("${u.username}${u.password?':••••':''}") is ignored by the browser. It is placed there to make the link look like a trusted site while sending you to ${host}.`,35);
+  else ok('No @ trick','Nothing is placed before the real host name to disguise it.');
+
+  // 4. punycode
+  if(host.split('.').some(l=>l.startsWith('xn--'))){
+    const dec = unPuny(host);
+    add('high','Lookalike letters in the domain',`This domain is written with special characters (punycode). It displays as "${dec}", which can imitate a familiar name using letters from another alphabet.`,28);
+  } else ok('Plain letters only','No look-alike character tricks in the domain.');
+
+  // 5. brand impersonation
+  if(!isIp && !known){
+    const label = regLabel; const toks = [label, ...label.split(/[-_]/)];
+    const subTxt = sub; let best = null;
+    const pick = (pts,t,d) => { if(!best || pts>best.pts) best = {pts,t,d}; };
+    for(const [name,doms] of BRANDS){
+      if(doms.includes(reg)) continue;
+      const shown = name.charAt(0).toUpperCase()+name.slice(1);
+      for(const t of toks){
+        if(!t) continue;
+        if(t===name) pick(label===name?30:34,'Uses a famous brand name',`"${name}" appears in the domain name ${reg}, but this is not ${shown}'s own address. Scammers borrow trusted names to earn a click.`);
+        else if(leetVariants(t).includes(name)) pick(42,'Swapped characters imitate a brand',`"${t}" copies "${name}" using digits in place of letters. It is not ${shown}'s real domain.`);
+        else if(name.length>=6 && t.length>=5 && lev(t,name)<=(name.length>=9?2:1)) pick(40,'Misspelling of a brand name',`"${t}" is one or two keystrokes away from "${name}". Typo-squatting relies on people not noticing the difference.`);
+        else if(name.length>=5 && t.includes(name)) pick(22,'Contains a famous brand name',`"${name}" is buried inside "${t}". That is not ${shown}'s own address.`);
+      }
+      const st = subTxt.split(/[.\-]/);
+      if(subTxt && (st.includes(name) || (name.length>=5 && subTxt.includes(name)))) pick(38,'Brand placed in the subdomain',`"${name}" sits to the left of ${reg}. The part that counts is ${reg}, which ${shown} does not own.`);
+      if(name.length>=5 && lowPath.includes(name)) pick(10,'Brand name in the page path',`"${name}" appears after the domain, which anyone can write on any site.`);
+    }
+    if(best) add(best.pts>=30?'high':best.pts>=20?'medium':'low',best.t,best.d,best.pts);
+    else ok('No lookalike of major brands',`Compared with ${BRANDS.length} widely impersonated companies.`);
+  } else if(known){
+    ok('Recognised domain',`${reg} belongs to a well-known service.`);
+  }
+
+  // 6. TLD
+  if(!isIp && SUS_TLD.has(tld)) add('medium',`".${tld}" is a high-abuse ending`,`Domains ending in .${tld} are cheap or free and appear in scam lists far more often than the average ending. Many are still legitimate.`,14);
+
+  // 7. subdomains
+  const subN = sub ? sub.split('.').length : 0;
+  if(subN>=4) add('medium','Very long chain of subdomains',`There are ${subN} labels before ${reg}. Long chains push the real owner out of sight on narrow screens.`,16);
+  else if(subN===3) add('low','Several subdomains',`There are three labels before ${reg}.`,7);
+
+  // 8. https
+  if(!p.assumed && u.protocol==='http:') add('medium','Connection is not encrypted','The link uses plain http. Anything typed on the page can be read on the way. Real login pages use https.',16);
+  else if(u.protocol==='https:') ok(p.assumed?'No scheme given':'Uses HTTPS',p.assumed?'We assumed https. Check the real link starts with https.':'The connection is encrypted. That does not mean the site is honest.');
+
+  // 9. shortener
+  if(SHORT.has(host)) add('medium','Link shortener hides the destination',`${host} forwards to another site that this page cannot see. Expand it with a shortener-preview tool before opening.`,16);
+
+  // 10. free host
+  const fh = FREEHOST.find(f => host===f || host.endsWith('.'+f));
+  if(fh && !known) add('low','Free hosting platform',`The site lives on ${fh}, a service anyone can use for free. Scammers use it often. It may also be an honest hobby site.`,8);
+
+  // 11. wording
+  if(!isIp && !known){
+    const hostTxt = (sub+' '+regLabel).toLowerCase();
+    const hh = WORDS.filter(w=>hostTxt.includes(w)), ph = WORDS.filter(w=>!hh.includes(w)&&lowPath.includes(w));
+    const pts = Math.min(24, hh.length*8 + Math.min(ph.length,3)*3);
+    if(pts>0) add(hh.length>=2?'medium':'low','Pressure or account wording',`${hh.length?'The domain contains '+hh.map(w=>'"'+w+'"').join(', ')+'. ':''}${ph.length?'The path contains '+ph.slice(0,4).map(w=>'"'+w+'"').join(', ')+'. ':''}Phishing pages lean on words like these to make a request feel official or urgent.`,pts);
+    else ok('No pressure wording','No words like verify, suspended or unlock in the address.');
+  }
+
+  // 12. hyphens/digits/entropy/length
+  if(!isIp){
+    const hy = (regLabel.replace(/^xn--/,'').match(/-/g)||[]).length;
+    if(hy>=2) add(hy>=3?'medium':'low',`${hy} hyphens in the domain name`,'Strings of hyphens are typical of made-up domains that mash trusted words together.',hy>=3?14:8);
+    const dg = (regLabel.match(/\d/g)||[]).length;
+    if(dg>=4 || (regLabel.length>0 && dg/regLabel.length>.4 && dg>=3)) add('low','Many digits in the name',`${regLabel} contains ${dg} digits. Machine-generated domains often look like this.`,8);
+    if(regLabel.length>=12 && entropy(regLabel)>3.5 && !/-/.test(regLabel)) add('low','Random-looking name',`"${regLabel}" has no readable words in it, which suggests an auto-generated domain.`,8);
+  }
+  if(p.input.length>120) add('low','Extremely long address',`The address is ${p.input.length} characters long. Long links can bury the part that matters.`,8);
+  else if(p.input.length>75) add('low','Long address',`The address is ${p.input.length} characters long.`,4);
+  else ok('Normal length',`${p.input.length} characters.`);
+
+  // 13. port, redirect, encoding
+  if(u.port && !['80','443'].includes(u.port)) add('medium',`Unusual port ${u.port}`,'Mainstream sites use the standard web ports. A custom port often points to a temporary server.',10);
+  if(/[?&](url|redirect|redirect_uri|redirect_url|next|continue|dest|destination|goto|return|returnurl|r|u|link)=(https?(:|%3a)|%2f%2f|\/\/)/i.test(u.search)) add('medium','Contains a second link to forward you',"A parameter in the address points to another site. Attackers use this to send you through a trusted name on the way to a fake page.",14);
+  const enc = (path.match(/%[0-9a-f]{2}/gi)||[]).length;
+  if(enc>6) add('low','Heavily encoded path',`The address has ${enc} percent-encoded characters, which can hide what the path really says.`,6);
+  if(/\/{2,}/.test(u.pathname)) add('low','Doubled slashes in the path','Repeated slashes are sometimes used to confuse filters.',4);
+
+  let score = Math.min(100, F.reduce((a,f)=>a+f.pts,0));
+  if(blocked && !general) score = Math.max(score,95);
+  if(known && !blocked) score = Math.max(0, score-20);
+  const level = score>=60?'danger':score>=30?'suspicious':score>=12?'caution':'clean';
+  F.sort((a,b)=>b.pts-a.pts);
+  return {input:p.input, host, reg, sub, tld, isIp, scheme:u.protocol.replace(':',''), port:u.port, path, assumed:p.assumed, findings:F, passed:P, score, level, blocked:!!blocked && !general, known};
+}
+
+/* ---------- render ---------- */
+const VERDICT = {
+  clean:['No red flags found','Nothing in the address looks wrong. That is not a guarantee. Baitcheck cannot see the page behind the link.'],
+  caution:['A few warning signs','Nothing decisive, but some details are worth a second look. Avoid typing passwords unless you are sure of the source.'],
+  suspicious:['Suspicious. Be careful','Several signs match how phishing links are built. Do not sign in or share details here. Go to the company by typing its address yourself.'],
+  danger:['Likely phishing. Do not open it','This link matches known phishing patterns or a reported scam domain. Do not enter any information and do not forward it.']
+};
+function notChecked(r){
+  let cert;
+  if(r.certInfo) cert = null;
+  else if(r.certPending) cert = 'Checking now…';
+  else if(r.certNote) cert = 'Could not check: '+r.certNote;
+  else if(STANDALONE) cert = HELPER ? 'Only https links have a certificate to inspect.' : 'Start the optional local helper to check this. See the README in the download.';
+  else cert = 'Needs the optional local helper that comes with the downloadable version.';
+  return [['Domain age','Newly registered domains are riskier. Needs a registry lookup.'], ...(cert?[['Certificate details',cert]]:[]), ['Page content','Login forms or logos copied from another brand.'], ['Reports newer than the snapshot',`Scams listed after ${SNAP} will not show.`]];
+}
+let lastResult = null;
+
+function anatomyHTML(r){
+  if(r.special || !r.host) return '';
+  const pre = `${r.scheme}://`;
+  const port = r.port ? ':'+r.port : '';
+  const path = r.path==='/'?'':r.path;
+  const shortPath = path.length>70 ? path.slice(0,70)+'…' : path;
+  const owner = r.isIp ? esc(r.host) : `<span class="hl">${esc(r.reg)}</span>`;
+  const subHtml = r.sub ? `<span class="dim">${esc(r.sub)}.</span>` : '';
+  return `<div class="anatomy"><div class="eyebrow">Who you would be dealing with</div>
+   <div class="url"><span class="dim">${esc(pre)}</span>${subHtml}${owner}<span class="dim">${esc(port)}${esc(shortPath)}</span></div>
+   <small>${r.isIp?'This is an IP address, so there is no name to check.':`The highlighted part, <b>${esc(r.reg)}</b>, is the registered domain. It names the owner. Everything to its left was chosen by that owner and everything to its right is just a page.`}</small></div>`;
+}
+function certWhy(m){ m=(m||'').toLowerCase();
+  if(m.includes('self-signed')) return 'The certificate is self-signed, so no trusted authority vouches for it.';
+  if(m.includes('expired')) return 'The certificate has expired.';
+  if(m.includes('hostname mismatch')||m.includes('not valid for')) return 'The certificate was issued for a different domain than this one.';
+  if(m.includes('local issuer')||m.includes('unknown ca')||m.includes('get issuer')) return 'The certificate comes from an authority that your computer does not trust.';
+  return 'Your computer rejected the certificate: '+m+'.'; }
+function certPanel(r){
+  const c = r.certInfo; if(!c) return '';
+  const row = (k,v) => `<div class="kv"><dt>${k}</dt><dd>${v}</dd></div>`;
+  return `<div class="panel"><h3>Certificate</h3><dl class="kvs">`+
+    row('Trusted', c.verified?'<span class="pill p-pass">Yes</span>':'<span class="pill p-high">No</span>')+
+    row('Issued to', esc(c.subject_cn||'unknown')+(c.subject_org?' ('+esc(c.subject_org)+')':''))+
+    row('Issued by', esc(c.issuer_org||c.issuer_cn||'unknown'))+
+    row('Valid', esc(c.not_before)+' to '+esc(c.not_after))+
+    row('Age', c.age_days===0?'Issued today':c.age_days+' days')+
+    row('Covers', esc((c.san||[]).slice(0,6).join(', '))+(c.san_count>6?' and '+(c.san_count-6)+' more':''))+
+    row('Connection', esc(c.tls||'unknown'))+
+    `</dl><p style="color:var(--muted);font-size:.85rem">Free certificates are open to anyone, so a valid one does not prove a site is honest.</p></div>`;
+}
+function applyCert(r, c){
+  r.certPending = false;
+  const addF = (sev,title,detail,pts) => { r.findings.push({sev,title,detail,pts}); if(!(r.blocked)) r.score = Math.min(100, r.score+pts); };
+  if(c.error){
+    if(c.error==='no_tls' && r.scheme==='https') addF('medium','No working HTTPS on this address','The link says https, but the server did not complete a secure connection on that port.',14);
+    else r.certNote = c.message || 'the check failed.';
+  } else {
+    r.certInfo = c;
+    if(!c.verified) addF('high','Certificate does not check out', certWhy(c.verify_error)+' Browsers warn about this for a reason. Do not enter details here.',30);
+    else r.passed.push({title:'Certificate is trusted', detail:'Issued by '+(c.issuer_org||c.issuer_cn||'a recognised authority')+' for this name. It proves the connection is private, not that the owner is honest.'});
+    if(c.age_days<=7) addF('low', c.age_days===0?'Certificate was issued today':`Certificate is only ${c.age_days} days old`, 'Scam sites are often set up with a brand-new certificate. Many honest new sites are too, so weigh it with the other signs.', 8);
+    else if(c.verified) r.passed.push({title:'Certificate is not brand new', detail:`Issued ${c.age_days} days ago.`});
+  }
+  r.level = r.score>=60?'danger':r.score>=30?'suspicious':r.score>=12?'caution':'clean';
+  r.findings.sort((a,b)=>b.pts-a.pts);
+}
+async function pingHelper(){ try{ const x = await fetch('/api/ping',{cache:'no-store'}); HELPER = x.ok && (await x.json()).ok===true; }catch(e){ HELPER = false; } }
+function canCert(r){ return STANDALONE && HELPER && !r.special && !r.isIp && !r.error && r.host && !(r.scheme==='http' && !r.assumed); }
+async function enrichCert(r){
+  let c;
+  try{ const x = await fetch('/api/cert?host='+encodeURIComponent(r.host)+'&port='+encodeURIComponent(r.port||443),{cache:'no-store'}); c = await x.json(); }
+  catch(e){ c = {error:'helper', message:'the local helper did not answer.'}; }
+  applyCert(r, c);
+  if(lastResult === r) $('#resultMount').innerHTML = resultHTML(r, false).replace('class="result"','class="result still"');
+}
+function resultHTML(r, example){
+  const [head, sub] = VERDICT[r.level];
+  const pin = Math.max(1, Math.min(99, r.score));
+  const finds = r.findings.length ? r.findings.map(f => `<div class="finding"><div class="row"><span class="pill p-${f.sev}">${f.sev}</span><h3>${esc(f.title)}</h3><span class="pts">+${f.pts}</span></div><p>${esc(f.detail)}</p></div>`).join('')
+    : `<p style="color:var(--muted)">No warning signs were found in the address.</p>`;
+  const passed = r.passed.map(x => `<li><span class="pill p-pass">Pass</span><span><b>${esc(x.title)}.</b> <span style="color:var(--muted)">${esc(x.detail)}</span></span></li>`).join('');
+  const na = notChecked(r).map(x => `<li><span class="pill p-na">Not checked</span><span><b>${esc(x[0])}.</b> <span style="color:var(--muted)">${esc(x[1])}</span></span></li>`).join('');
+  return `<div class="result" id="resultBox">
+    ${example?'<div class="banner"><b>Example</b> This is a sample result. Paste your own link above.</div>':''}
+    <div class="verdict v-${r.level}">
+      <span class="tag">${esc(['clean','caution','suspicious','danger'].includes(r.level)?{clean:'Low risk',caution:'Mild risk',suspicious:'High risk',danger:'Critical'}[r.level]:'')}</span>
+      <h2>${esc(head)}</h2>
+      <div class="score"><b>${r.score}</b><span>/ 100 risk score</span></div>
+      <div class="meter" role="img" aria-label="Risk score ${r.score} out of 100"><div class="meter-zones"><i></i><i></i><i></i><i></i></div><div class="meter-pin" style="left:${pin}%"></div>
+        <div class="meter-labels"><span style="left:0">0</span><span style="left:12%">12</span><span style="left:30%">30</span><span style="left:60%">60</span><span style="left:100%">100</span></div></div>
+      <p style="color:var(--muted);max-width:62ch">${esc(sub)}</p>
+      ${anatomyHTML(r)}
+      <div class="actions"><button class="btn ghost" type="button" data-act="copy">Copy summary</button><button class="btn ghost" type="button" data-act="flag">Flag on this device</button></div>
+      <div class="toast" id="actMsg" role="status"></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h3>Why it scored ${r.score}</h3><div>${finds}</div></div>
+      <div class="stack" style="gap:22px">
+        ${certPanel(r)}
+        <div class="panel"><h3>Checks passed</h3><ul class="plist">${passed||'<li style="color:var(--muted)">None.</li>'}</ul></div>
+        <div class="panel"><h3>Not checked here</h3><ul class="plist">${na}</ul></div>
+      </div>
+    </div></div>`;
+}
+function show(r, example){
+  lastResult = r;
+  if(!example && canCert(r)) r.certPending = true;
+  $('#resultMount').innerHTML = resultHTML(r, example);
+  if(r.certPending) enrichCert(r);
+}
+function pushHistory(r){
+  if(r.error||!r.host) return;
+  let h = store('baitcheck.history')||[];
+  h = [{u:r.input,s:r.score,l:r.level}, ...h.filter(x=>x.u!==r.input)].slice(0,6);
+  store('baitcheck.history', h); renderRecent();
+}
+function renderRecent(){
+  const h = store('baitcheck.history')||[]; const wrap = $('#recentWrap');
+  wrap.hidden = !h.length;
+  $('#recentList').innerHTML = h.map((x,i)=>`<li><button type="button" data-hist="${i}"><span class="u">${esc(x.u)}</span><span class="pill p-${x.l==='danger'?'high':x.l==='suspicious'?'medium':x.l==='caution'?'low':'pass'}">${x.s}</span></button></li>`).join('');
+}
+function run(raw, example){
+  const r = analyze(raw);
+  const err = $('#scanErr');
+  if(r.error){ err.textContent = r.error; return; }
+  err.textContent = '';
+  show(r, example);
+  if(!example) { pushHistory(r); $('#resultMount').scrollIntoView({behavior:'smooth',block:'start'}); }
+}
+function flash(msg){ const m = $('#actMsg'); if(m){ m.textContent = msg; } }
+function summaryText(r){
+  const lines = [`Baitcheck result for ${r.input}`, `Verdict: ${VERDICT[r.level][0]} (risk ${r.score}/100)`, ''];
+  r.findings.forEach(f => lines.push(`- [${f.sev}] ${f.title}: ${f.detail}`));
+  lines.push('', 'Checked the address only, not the page content.');
+  return lines.join('\n');
+}
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); return true; }
+  catch(e){
+    const ta = document.createElement('textarea'); ta.value = t; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select();
+    let ok=false; try{ ok = document.execCommand('copy'); }catch(_){} ta.remove(); return ok;
+  }
+}
+function saveFlag(hostLike, why){
+  const p = parseInput(hostLike);
+  if(p.error || !p.host) return {error:p.error||'Enter a link or domain.'};
+  const list = store('baitcheck.reports')||[];
+  if(list.some(x=>x.host===p.host)) return {error:'Already flagged on this device.'};
+  list.unshift({host:p.host, why, date:new Date().toISOString().slice(0,10)});
+  store('baitcheck.reports', list.slice(0,100));
+  return {ok:p.host};
+}
+function renderReports(){
+  const list = store('baitcheck.reports')||[];
+  $('#repList').innerHTML = list.length ? `<div class="eyebrow" style="margin:6px 0 8px">Flagged on this device</div><ul class="plist">${list.map((x,i)=>`<li><span class="pill p-high">Flag</span><span style="flex:1;min-width:0"><span class="mono" style="overflow-wrap:anywhere">${esc(x.host.replace(/\./g,'[.]'))}</span><br><span style="color:var(--muted);font-size:.85rem">${esc(x.why)} · ${esc(x.date)}</span></span><button class="btn ghost sm" type="button" data-rm="${i}">Remove</button></li>`).join('')}</ul>` : '';
+}
+
+/* ---------- threats page ---------- */
+let filtered = [], shown = 30;
+function renderBars(){
+  const draw = (id, rows) => { const max = rows[0][1]; $(id).innerHTML = rows.map(([k,n]) => `<div class="bar"><span class="l">${esc(id==='#tldBars'?'.'+k:k)}</span><span class="track"><span class="fill" style="width:${(n/max*100).toFixed(1)}%"></span></span><span class="n">${fmt(n)}</span></div>`).join(''); };
+  draw('#tldBars', STATS.tlds); draw('#hostBars', STATS.parents);
+}
+function renderSample(){
+  const q = $('#filterIn').value.trim().toLowerCase();
+  filtered = STATS.sample.filter(d => !q || d.includes(q));
+  $('#sampBody').innerHTML = filtered.slice(0,shown).map(d => `<tr><td class="d">${esc(d.replace(/\./g,'[.]'))}</td><td>.${esc(d.split('.').pop())}</td></tr>`).join('') || '<tr><td colspan="2" style="color:var(--muted)">No sample entries match.</td></tr>';
+  $('#sampCount').textContent = `Showing ${Math.min(shown,filtered.length)} of ${filtered.length}`;
+  $('#moreBtn').hidden = shown >= filtered.length;
+}
+
+/* ---------- snapshot lookup & complaint builder ---------- */
+function lookup(raw){
+  const p = parseInput(raw);
+  if(p.error || !p.host) return {error:p.error||'Enter a link or domain.'};
+  const bl = loadBL(); const lab = p.host.split('.'); const cands = [p.host];
+  if(!p.isIp) for(let i=1;i<lab.length-1;i++) cands.push(lab.slice(i).join('.'));
+  const hit = cands.find(c => bl.has(keyOf(c)));
+  return {host:p.host, hit};
+}
+function buildReport(f){
+  const p = parseInput(f.url);
+  if(p.error || !p.host) return {error:p.error||'Enter the fraud link first.'};
+  const r = analyze(f.url);
+  const L = [];
+  L.push('Complaint: fraudulent website','');
+  L.push('Website link: '+f.url.trim());
+  L.push('Domain: '+(r.reg||p.host));
+  L.push('Reached through: '+f.how);
+  if(f.date) L.push('Date of incident: '+f.date);
+  L.push('Money lost: '+(f.loss==='yes' ? 'Yes, INR '+(f.amt||'amount not stated') : 'No'));
+  if(f.txn.trim()) L.push('Transaction / UPI reference: '+f.txn.trim());
+  L.push('','What happened:', f.note.trim() || '(not described)','');
+  L.push('Automated address check (Baitcheck, blocklist snapshot '+SNAP+'):');
+  L.push('Risk score '+r.score+'/100, '+VERDICT[r.level][0].split('.')[0].toLowerCase()+'.');
+  L.push('Listed in a community phishing-domain database: '+(r.blocked?'yes':'no')+'.');
+  r.findings.slice(0,6).forEach(x => L.push('- '+x.title));
+  L.push('','This check reads the address only, not the page content.');
+  return {text:L.join('\n')};
+}
+
+/* ---------- routing & theme ---------- */
+const PAGES = ['home','threats','report','tips','about'];
+function route(){
+  const h = (location.hash||'').replace('#','');
+  const pg = PAGES.includes(h) ? h : 'home';
+  $$('.page').forEach(s => s.classList.toggle('on', s.dataset.page===pg));
+  $$('[data-nav]').forEach(a => { if(a.dataset.nav===pg) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current'); });
+  if(pg==='report'){ const u=$('#rpUrl'), h=(store('baitcheck.history')||[])[0]; if(u && !u.value && h) u.value=h.u; }
+  window.scrollTo(0,0);
+}
+function toggleTheme(){
+  const root = document.documentElement;
+  const cur = root.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = cur==='dark' ? 'light' : 'dark';
+  root.dataset.theme = next; store('baitcheck.theme', next);
+}
+
+/* ---------- init ---------- */
+(function init(){ try{
+  const th = store('baitcheck.theme'); if(th) document.documentElement.dataset.theme = th;
+  $('#themeBtn').addEventListener('click', toggleTheme);
+  $('#snapDate').textContent = SNAP; $('#footDate').textContent = SNAP; $('#aboutCount').textContent = fmt(STATS.count);
+  $('#thLead').textContent = `${fmt(STATS.count)} domains reported as active phishing sites, from the open Phishing.Database project, snapshot of ${SNAP}. Baitcheck checks every link you paste against this list.`;
+  $('#sampN').textContent = STATS.sample.length;
+  $('#homeStats').innerHTML = `<div class="stat"><b>${fmt(STATS.count)}</b><span>reported phishing domains in the snapshot</span></div><div class="stat"><b>${STATS.tlds[0][1] ? Math.round(STATS.tlds[0][1]/STATS.count*100)+'%' : ''}</b><span>of them end in .${esc(STATS.tlds[0][0])}, so a familiar ending proves little</span></div><div class="stat"><b>${fmt(STATS.parents[0][1]+STATS.parents[1][1]+STATS.parents[2][1])}</b><span>sit on just three free hosting platforms</span></div>`;
+  renderBars(); renderSample(); renderReports(); renderRecent();
+
+  $('#scanForm').addEventListener('submit', e => { e.preventDefault(); run($('#urlInput').value, false); });
+  $('#scanForm').addEventListener('click', e => { const c = e.target.closest('[data-sample]'); if(c){ $('#urlInput').value = c.dataset.sample; run(c.dataset.sample, false); } });
+  $('#recentList').addEventListener('click', e => { const b = e.target.closest('[data-hist]'); if(!b) return; const h = (store('baitcheck.history')||[])[+b.dataset.hist]; if(h){ $('#urlInput').value = h.u; run(h.u,false); } });
+  $('#resultMount').addEventListener('click', async e => {
+    const b = e.target.closest('[data-act]'); if(!b || !lastResult) return;
+    if(b.dataset.act==='copy'){ flash((await copyText(summaryText(lastResult))) ? 'Summary copied.' : 'Could not copy. Select the text manually.'); }
+    if(b.dataset.act==='flag'){ if(!lastResult.host){ flash('Nothing to flag.'); return; } const r = saveFlag(lastResult.host,'Flagged from a scan result'); flash(r.error||'Flagged on this device. It will show as reported next time.'); renderReports(); }
+  });
+  $('#filterIn').addEventListener('input', () => { shown = 30; renderSample(); });
+  $('#moreBtn').addEventListener('click', () => { shown += 40; renderSample(); });
+  $('#repForm').addEventListener('submit', e => { e.preventDefault(); const r = saveFlag($('#repUrl').value, $('#repWhy').value); const m = $('#repMsg'); m.style.color = r.error ? 'var(--bad)' : 'var(--ok)'; m.textContent = r.error || `Saved ${r.ok.replace(/\./g,'[.]')} on this device.`; if(!r.error){ $('#repUrl').value=''; renderReports(); } });
+  $('#repList').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if(!b) return; const l = store('baitcheck.reports')||[]; l.splice(+b.dataset.rm,1); store('baitcheck.reports', l); renderReports(); });
+  $('#lkN').textContent = fmt(STATS.count);
+  $('#lkForm').addEventListener('submit', e => { e.preventDefault(); const r = lookup($('#lkIn').value); const o = $('#lkOut');
+    if(r.error){ o.style.color='var(--bad)'; o.textContent=r.error; return; }
+    const shown = (r.hit||r.host).replace(/\./g,'[.]');
+    if(r.hit){ o.style.color='var(--bad)'; o.innerHTML = `<b>Found.</b> <span class="mono">${esc(shown)}</span> is in the snapshot of reported phishing domains.`; }
+    else { o.style.color='var(--ok)'; o.innerHTML = `<b>Not found.</b> <span class="mono">${esc(r.host.replace(/\./g,'[.]'))}</span> is not in the snapshot. That does not make it safe. New scams appear daily.`; } });
+  $('#rpDate').value = new Date().toISOString().slice(0,10);
+  $('#rpForm').addEventListener('submit', e => { e.preventDefault();
+    const r = buildReport({url:$('#rpUrl').value, how:$('#rpHow').value, date:$('#rpDate').value, loss:$('#rpLoss').value, amt:$('#rpAmt').value, txn:$('#rpTxn').value, note:$('#rpNote').value});
+    const m = $('#rpMsg');
+    if(r.error){ m.style.color='var(--bad)'; m.textContent=r.error; return; }
+    m.style.color='var(--ok)'; m.textContent='Complaint text is ready below. Check it, then copy it into the portal.';
+    $('#rpOut').value = r.text; $('#rpOutWrap').hidden = false; $('#rpCopy').hidden = false; });
+  $('#rpCopy').addEventListener('click', async () => { const ok = await copyText($('#rpOut').value); if(!ok) $('#rpOut').select(); $('#rpMsg').style.color='var(--ok)'; $('#rpMsg').textContent = ok ? 'Copied.' : 'Could not copy automatically. The text is selected, press Ctrl+C.'; });
+  if(STANDALONE) pingHelper();
+  window.addEventListener('hashchange', route); route();
+  // Example result shown at rest; loads the index after first paint
+  setTimeout(() => { try{ show(analyze('https://accounts.paypal.com.secure-verify.top/signin?next=http://get-token.xyz'), true); }catch(e){ showFatal(e); } }, 30);
+}catch(e){ showFatal(e); throw e; } })();
+</script>
